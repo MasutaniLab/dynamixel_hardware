@@ -19,6 +19,8 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <exception>
+#include <stdexcept> 
 
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
@@ -58,9 +60,17 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
 
   joints_.resize(info_.joints.size(), Joint());
   joint_ids_.resize(info_.joints.size(), 0);
+  joint_ratio_.resize(info_.joints.size(), 1);
+  joint_offset_.resize(info_.joints.size(), 0);
 
   for (uint i = 0; i < info_.joints.size(); i++) {
     joint_ids_[i] = std::stoi(info_.joints[i].parameters.at("id"));
+    try {
+      joint_ratio_[i] = std::stof(info_.joints[i].parameters.at("ratio"));
+    } catch (std::out_of_range& e) {}
+    try {
+      joint_offset_[i] = std::stof(info_.joints[i].parameters.at("offset"));
+    } catch (std::out_of_range& e) {}
     joints_[i].state.position = std::numeric_limits<double>::quiet_NaN();
     joints_[i].state.velocity = std::numeric_limits<double>::quiet_NaN();
     joints_[i].state.effort = std::numeric_limits<double>::quiet_NaN();
@@ -68,6 +78,8 @@ CallbackReturn DynamixelHardware::on_init(const hardware_interface::HardwareInfo
     joints_[i].command.velocity = std::numeric_limits<double>::quiet_NaN();
     joints_[i].command.effort = std::numeric_limits<double>::quiet_NaN();
     RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "joint_id %d: %d", i, joint_ids_[i]);
+    RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "joint_ratio %d: %f", i, joint_ratio_[i]);
+    RCLCPP_INFO(rclcpp::get_logger(kDynamixelHardware), "joint_offset %d: %f", i, joint_offset_[i]);
   }
 
   if (
@@ -279,9 +291,16 @@ return_type DynamixelHardware::read(const rclcpp::Time & /* time */, const rclcp
     RCLCPP_ERROR(rclcpp::get_logger(kDynamixelHardware), "%s", log);
   }
 
+
   for (uint i = 0; i < ids.size(); i++) {
-    joints_[i].state.position = dynamixel_workbench_.convertValue2Radian(ids[i], positions[i]);
-    joints_[i].state.velocity = dynamixel_workbench_.convertValue2Velocity(ids[i], velocities[i]);
+    // joint = (actuator - offset) / ratio
+    float actuator = dynamixel_workbench_.convertValue2Radian(ids[i], positions[i]);
+    float joint = (actuator - joint_offset_[i]) / joint_ratio_[i];
+    joints_[i].state.position =  joint;
+    // v_joint = v_actuator  / ratio
+    float v_actuator = dynamixel_workbench_.convertValue2Velocity(ids[i], velocities[i]);
+    float v_joint = v_actuator / joint_ratio_[i];
+    joints_[i].state.velocity = v_joint;
     joints_[i].state.effort = dynamixel_workbench_.convertValue2Current(currents[i]);
   }
 
@@ -309,8 +328,11 @@ return_type DynamixelHardware::write(const rclcpp::Time & /* time */, const rclc
     // Velocity control
     set_control_mode(ControlMode::Velocity);
     for (uint i = 0; i < ids.size(); i++) {
+      // v_actuator = ratio * v_joint
+      float v_joint = static_cast<float>(joints_[i].command.velocity);
+      float v_actuator = joint_ratio_[i] * v_joint;
       commands[i] = dynamixel_workbench_.convertVelocity2Value(
-        ids[i], static_cast<float>(joints_[i].command.velocity));
+        ids[i],  v_actuator);
     }
     if (!dynamixel_workbench_.syncWrite(
           kGoalVelocityIndex, ids.data(), ids.size(), commands.data(), 1, &log)) {
@@ -327,8 +349,11 @@ return_type DynamixelHardware::write(const rclcpp::Time & /* time */, const rclc
   // Position control
   set_control_mode(ControlMode::Position);
   for (uint i = 0; i < ids.size(); i++) {
+    // actuator = ratio * joint + offset
+    float joint = static_cast<float>(joints_[i].command.position);
+    float actuator = joint_ratio_[i] * joint + joint_offset_[i];
     commands[i] = dynamixel_workbench_.convertRadian2Value(
-      ids[i], static_cast<float>(joints_[i].command.position));
+      ids[i],  actuator);
   }
   if (!dynamixel_workbench_.syncWrite(
         kGoalPositionIndex, ids.data(), ids.size(), commands.data(), 1, &log)) {

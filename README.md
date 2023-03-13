@@ -1,4 +1,17 @@
-# dynamixel_control
+# ros2_control packages for ROBOTIS Dynamixel (Masutani Lab version) 
+
+TODO: ドキュメント作成
+
+## 概要
+
+- オリジナル： https://github.com/dynamixel-community/dynamixel_hardware の [foxyブランチ](https://github.com/dynamixel-community/dynamixel_hardware/tree/foxy)
+- open_manipulator_x_description, pantilt_bot_description ディレクトリを削除
+- Dynamixelアクチュエータの角度とモデルの関節の値が一致しない場合に変換する機能を追加．
+  - `dynamixel_hardware/DynamixelHardware`の`<joint>`タグの`<param>`に`ratio`と`offset`を追加．
+  - ただし，線形変換．
+  - `actuator = ratio * joint + offset`
+
+以下はまだオリジナルのまま
 
 The [`ros2_control`](https://github.com/ros-controls/ros2_control) implementation for any kind of [ROBOTIS Dynamixel](https://emanual.robotis.com/docs/en/dxl/) robots.
 
