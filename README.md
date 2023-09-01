@@ -4,7 +4,7 @@ TODO: ドキュメント作成
 
 ## 概要
 
-- オリジナル： https://github.com/dynamixel-community/dynamixel_hardware の [foxyブランチ](https://github.com/dynamixel-community/dynamixel_hardware/tree/foxy)
+- オリジナル： https://github.com/dynamixel-community/dynamixel_hardware の [humbleブランチ](https://github.com/dynamixel-community/dynamixel_hardware/tree/humble)
 - open_manipulator_x_description, pantilt_bot_description ディレクトリを削除
 - Dynamixelアクチュエータの角度とモデルの関節の値が一致しない場合に変換する機能を追加．
   - `dynamixel_hardware/DynamixelHardware`の`<joint>`タグの`<param>`に`ratio`と`offset`を追加．
